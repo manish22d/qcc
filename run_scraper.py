@@ -3,6 +3,7 @@ import os
 import csv
 from scrapper.analytics_scraper import AnalyticsScraper
 from crawler.link_extractor import LinkExtractor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def save_to_csv(data, filename):
@@ -21,28 +22,32 @@ def save_to_csv(data, filename):
 
     print(f"✅ Data saved to {full_path }")
 
+def scrape_url(link):
+    try:
+        scraper = AnalyticsScraper(link)
+        return scraper.run()
+    except Exception as e:
+        print(f"❌ Error scraping {link}: {e}")
+        return {"url": link, "activity_tags": []}
+
 
 if __name__ == "__main__":
-    base_url = "https://www.coke2home.com/toofanibiryanihunt/"
+    base_url = "https://www.tayyarijeetki.in/faqs#"
 
     print(f"🌐 Extracting links from: {base_url}")
     extractor = LinkExtractor(base_url)
     links = extractor.get_all_links()
     print(f"🔗 Found {len(links)} links")
+    print(links)
 
     all_results = []
-
-    for i, link in enumerate(links, 1):
-        print(f"\n➡️ ({i}/{len(links)}) Scraping: {link}")
-        try:
-            scraper = AnalyticsScraper(link)
-            result = scraper.run()
+    
+    with ThreadPoolExecutor(max_workers=5) as executor:  # You can tune max_workers
+        future_to_url = {executor.submit(scrape_url, link): link for link in links}
+        
+        for i, future in enumerate(as_completed(future_to_url), 1):
+            result = future.result()
+            print(f"✅ ({i}/{len(links)}) Done: {result['url']}")
             all_results.append(result)
-        except Exception as e:
-            print(f"❌ Error scraping {link}: {e}")
-            all_results.append({
-                "url": link,
-                "activity_tags": []
-            })
-
+    
     save_to_csv(all_results, "filtered_analytics_data.csv")
